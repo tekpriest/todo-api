@@ -1,0 +1,182 @@
+* Intro (0-15 seconds)
+  Welcome to this tutorial on creating a Todo API server using the Go programming language.
+
+* Setting up the environment (15-30 seconds)
+  - Before we dive into the code, let's make sure our development environment is set up properly.
+    #+BEGIN_SRC bash
+      mkdir todo-api
+      cd todo-api
+    #+END_SRC
+  - You'll need to have Go installed on your system. If you don't, you can download it from the official website.
+  - Create a new directory for your project and initialize a Go module by running "go mod init <module-name>".
+    #+begin_src bash
+     go mod init todo-api 
+    #+end_src
+
+* Defining the Todo model (30-45 seconds)
+  - Our Todo API will have a Todo model that represents each task we want to manage.
+    #+begin_src bash
+      mkdir models
+      touch Todo.go
+    #+end_src
+  - Let's create a new file, "todo.go", and define the Todo model as a Go struct with fields for the ID, task description, and status.
+    #+begin_src go
+    // Todo.go
+    package models
+
+    type Todo struct {
+      ID int `json:"id"`
+      Task string `json:"task"`
+      Description string `json:"description"`
+      Status string `json:"status"`
+    } 
+    #+end_src
+
+* Setting up the database (45-60 seconds)
+  - Next, we'll set up a database to store our Todos.
+    #+begin_src bash
+      touch database.go
+    #+end_src
+  - We'll use [gorm]("https://gorm.io") and the SQLite driver as it's easy to get started with and we can change the driver should we need to later
+  - Install the gorm package and sqlite driver
+    #+begin_src bash
+    go get -u gorm.io/gorm
+    go get -u gorm.io/driver/sqlite
+    #+end_src
+  - In the `database.go` file, we will implement the database connection
+    #+begin_src go
+    // database.go
+
+    import (
+      "context"
+
+      "gorm.io/gorm"
+      "gorm.io/gorm/logger"
+      "gorm.io/driver/sqlite"
+    )
+    type DatabaseConnection interface {
+      GetDB() *gorm.DB
+    }
+    
+    type databaseConnection struct {
+      DB *gorm.DB
+    }
+    
+    func (d *databaseConnection) GetDB() *gorm.DB {
+      return d.DB
+    }
+
+    func NewDatabaseConnection() DatabaseConnection {
+      ctx := context.Background()
+      db, err := gorm.Open(sqlite.Open("todo_api.db"), &gorm.Config{
+        Logger: logger.Default.LogMode(logger.Info)
+      })
+      if err != nil {
+        panic("failed to connect to database")
+      }
+
+      defer ctx.Done()
+
+    }
+    #+end_src
+  - Next we will set up auto migration in the database file so the database can be aware.
+    First import the `Todo` model from the models package
+    #+begin_src go
+    package todo-api
+
+    import (
+      ...
+      "todo-api/models"
+    )
+
+  #+end_src
+  - Next add the `Todo` model to auto migrate to the database
+    #+begin_src go
+    // database.go
+
+    func NewDatabaseConnection() DatabaseConnection {
+      ...
+      db.AutoMigrate(&Todo{})
+    }
+    #+end_src
+  - We need to return the databaseConnection struct instance so we can use the methods in the service we will create later
+    #+begin_src go
+    func NewDatabaseConnection() DatabaseConnection {
+      ...
+      return &databaseConnection{
+        DB: db
+      }
+     }
+    #+end_src
+  - Use the Go SQL library to connect to the database, create the Todos table, and perform CRUD operations on the Todos.
+
+* Defining the Todo service file
+  Create `service.go` file
+  #+begin_src bash
+  touch service.go
+  #+end_src
+  First we set up the interface, decorator and a function to instantiate the service
+  #+begin_src go
+  // service.go
+
+  import (
+    "gorm.io/gorm"
+    "todo-api/models"
+  )
+
+  type Service interface {
+    CreateTodo(task, description string) (*models.Todo, error)
+    FetchTodos() ([]models.User)
+    FetchTodo(ID int) (*models.Todo, error)
+    UpdateStatus(ID int, status string)(*models.Todo, error)
+    DeleteTodo(ID int) error
+  }
+
+  type service struct {
+    db *gorm.DB
+  }
+
+  func NewService(db database.DatabaseConnection) Service {
+    return &service{db: db.GetDB()}
+  }
+  #+end_src
+  Add the crud operations to the service file
+  #+begin_src go
+  // service.go
+
+  ...
+
+  func (s *service) CreateTodo(task, description string) (*models.Todo, error) {
+    var todo models.Todo
+
+    newTodo := &models.Todo{
+      ID: 1,
+      Task: task,
+      Description: description,
+      Status: "INIT"
+    }
+    if err := s.db.Create(newTodo).Error; err != nil {
+      return nil, err
+    }
+    
+    if er := s.db.First(&todo, "id = ?", newTodo.ID).Error; err != nil {
+      return nil, err
+    }
+
+    return &todo, nil
+  }
+  #+end_src
+
+* Defining the API routes (60-75 seconds)
+  - We'll use the popular Gin web framework to define our API routes.
+  - We'll create a new file, "routes.go", and define routes for creating, reading, updating, and deleting Todos.
+
+* Starting the server (90-105 seconds)
+  - Finally, we'll start the server by calling the appropriate functions from our "routes.go" file in the main function.
+  - Test your API by sending HTTP requests using tools like curl or Postman.
+
+* Outro (105-120 seconds)
+  - And that's it! You now have a basic Todo API server up and running in Go.
+  - There's a lot more you can do with Go, such as adding authentication, authorization, and other features to your API.
+  - Thank you for watching and happy coding!
+
